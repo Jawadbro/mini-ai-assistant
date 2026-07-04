@@ -1,0 +1,535 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Mini AI Assistant — Console</title>
+<style>
+  :root {
+    --bg: #0d1117;
+    --panel: #12181f;
+    --panel-2: #161d26;
+    --border: #232c37;
+    --text: #d8dee9;
+    --text-dim: #7c8998;
+    --accent: #4fd1c5;
+    --accent-dim: #2f7d75;
+    --user-bubble: #1b2530;
+    --assist-bubble: #12232199;
+    --tool: #e0a458;
+    --kb: #4fd1c5;
+    --direct: #7c8998;
+    --error: #e0685c;
+    --mono: "JetBrains Mono", "SF Mono", Consolas, Menlo, monospace;
+    --sans: "Inter", -apple-system, BlinkMacSystemFont, sans-serif;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--sans);
+    height: 100vh;
+    overflow: hidden;
+  }
+  .layout {
+    display: grid;
+    grid-template-columns: 320px 1fr 320px;
+    height: 100vh;
+  }
+  @media (max-width: 900px) {
+    .layout { grid-template-columns: 1fr; }
+    .side { display: none; }
+  }
+  .side {
+    background: var(--panel);
+    border-right: 1px solid var(--border);
+    padding: 20px;
+    overflow-y: auto;
+  }
+  .side.right {
+    border-right: none;
+    border-left: 1px solid var(--border);
+  }
+  .brand {
+    font-family: var(--mono);
+    font-size: 13px;
+    letter-spacing: 0.08em;
+    color: var(--accent);
+    text-transform: uppercase;
+    margin-bottom: 4px;
+  }
+  .brand .dot { color: var(--text-dim); }
+  h1 {
+    font-size: 15px;
+    font-weight: 600;
+    margin: 0 0 20px 0;
+    color: var(--text);
+  }
+  .section-label {
+    font-family: var(--mono);
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: var(--text-dim);
+    margin: 22px 0 10px 0;
+  }
+  .section-label:first-of-type { margin-top: 0; }
+
+  .upload-zone {
+    border: 1px dashed var(--border);
+    border-radius: 6px;
+    padding: 18px 14px;
+    text-align: center;
+    cursor: pointer;
+    transition: border-color 0.15s, background 0.15s;
+    font-size: 12.5px;
+    color: var(--text-dim);
+  }
+  .upload-zone:hover, .upload-zone.dragover {
+    border-color: var(--accent-dim);
+    background: rgba(79, 209, 197, 0.05);
+    color: var(--text);
+  }
+  .upload-zone input { display: none; }
+
+  .doc-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-size: 12px;
+    padding: 8px 10px;
+    background: var(--panel-2);
+    border: 1px solid var(--border);
+    border-radius: 5px;
+    margin-bottom: 6px;
+    font-family: var(--mono);
+  }
+  .doc-item .chunks { color: var(--accent); font-size: 11px; }
+
+  .tool-card {
+    background: var(--panel-2);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 10px 12px;
+    margin-bottom: 10px;
+    font-size: 12px;
+  }
+  .tool-card .name {
+    font-family: var(--mono);
+    color: var(--tool);
+    font-weight: 600;
+    margin-bottom: 4px;
+  }
+  .tool-card .desc { color: var(--text-dim); line-height: 1.5; font-size: 11.5px; }
+
+  .main {
+    display: flex;
+    flex-direction: column;
+    height: 100vh;
+  }
+  .chat-header {
+    padding: 16px 24px;
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+  .chat-header .session {
+    font-family: var(--mono);
+    font-size: 11px;
+    color: var(--text-dim);
+  }
+  .clear-btn {
+    background: none;
+    border: 1px solid var(--border);
+    color: var(--text-dim);
+    font-size: 11px;
+    padding: 5px 10px;
+    border-radius: 4px;
+    cursor: pointer;
+    font-family: var(--mono);
+  }
+  .clear-btn:hover { border-color: var(--error); color: var(--error); }
+
+  .messages {
+    flex: 1;
+    overflow-y: auto;
+    padding: 24px;
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+  }
+  .msg {
+    max-width: 72%;
+    padding: 11px 15px;
+    border-radius: 10px;
+    line-height: 1.55;
+    font-size: 14px;
+    white-space: pre-wrap;
+  }
+  .msg.user {
+    align-self: flex-end;
+    background: var(--user-bubble);
+    border: 1px solid var(--border);
+  }
+  .msg.assistant {
+    align-self: flex-start;
+    background: var(--assist-bubble);
+    border: 1px solid var(--border);
+  }
+  .msg .route-tag {
+    display: inline-block;
+    font-family: var(--mono);
+    font-size: 9.5px;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    padding: 2px 6px;
+    border-radius: 3px;
+    margin-bottom: 6px;
+    opacity: 0.85;
+  }
+  .route-tag.tool_call { background: rgba(224,164,88,0.15); color: var(--tool); }
+  .route-tag.knowledge_base { background: rgba(79,209,197,0.15); color: var(--kb); }
+  .route-tag.direct { background: rgba(124,137,152,0.15); color: var(--direct); }
+
+  .empty-state {
+    margin: auto;
+    text-align: center;
+    color: var(--text-dim);
+    font-size: 13px;
+    max-width: 380px;
+  }
+  .empty-state .big { font-size: 28px; margin-bottom: 10px; }
+
+  .composer {
+    padding: 16px 24px 22px;
+    border-top: 1px solid var(--border);
+  }
+  .composer-inner {
+    display: flex;
+    gap: 10px;
+    background: var(--panel-2);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 6px 6px 6px 14px;
+  }
+  .composer-inner:focus-within { border-color: var(--accent-dim); }
+  .composer input {
+    flex: 1;
+    background: none;
+    border: none;
+    outline: none;
+    color: var(--text);
+    font-size: 14px;
+    padding: 10px 0;
+    font-family: var(--sans);
+  }
+  .composer input::placeholder { color: var(--text-dim); }
+  .send-btn {
+    background: var(--accent);
+    color: #08171a;
+    border: none;
+    border-radius: 6px;
+    padding: 0 16px;
+    font-weight: 600;
+    font-size: 13px;
+    cursor: pointer;
+  }
+  .send-btn:disabled { opacity: 0.4; cursor: default; }
+  .hint { font-size: 11px; color: var(--text-dim); margin-top: 8px; font-family: var(--mono); }
+
+  .trace-empty { color: var(--text-dim); font-size: 12px; line-height: 1.6; }
+  .trace-block {
+    border: 1px solid var(--border);
+    background: var(--panel-2);
+    border-radius: 6px;
+    padding: 10px 12px;
+    margin-bottom: 10px;
+    font-family: var(--mono);
+    font-size: 11px;
+  }
+  .trace-block .k { color: var(--text-dim); }
+  .trace-block .v { color: var(--text); }
+  .trace-block pre {
+    white-space: pre-wrap;
+    word-break: break-word;
+    margin: 4px 0 0 0;
+    color: var(--accent);
+  }
+  .source-snippet {
+    border-left: 2px solid var(--accent-dim);
+    padding-left: 8px;
+    margin-top: 6px;
+    color: var(--text-dim);
+    font-size: 10.5px;
+    line-height: 1.5;
+  }
+  .spinner {
+    width: 14px; height: 14px;
+    border: 2px solid var(--border);
+    border-top-color: var(--accent);
+    border-radius: 50%;
+    animation: spin 0.7s linear infinite;
+    display: inline-block;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  .thinking { display:flex; align-items:center; gap:8px; color: var(--text-dim); font-size: 12px; padding: 4px 0; }
+
+  ::-webkit-scrollbar { width: 8px; }
+  ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 4px; }
+</style>
+</head>
+<body>
+<div class="layout">
+
+  <!-- LEFT: Knowledge base -->
+  <div class="side left">
+    <div class="brand">mini-ai<span class="dot">·</span>assistant</div>
+    <h1>Knowledge Base</h1>
+
+    <div class="section-label">Upload document</div>
+    <div class="upload-zone" id="dropZone">
+      Drop a PDF / TXT / MD file<br>or click to browse
+      <input type="file" id="fileInput" accept=".pdf,.txt,.md,.markdown" />
+    </div>
+
+    <div class="section-label">Ingested documents</div>
+    <div id="docList"><div class="trace-empty">No documents ingested yet.</div></div>
+
+    <div class="section-label">Available tools</div>
+    <div class="tool-card">
+      <div class="name">get_order_status</div>
+      <div class="desc">Looks up shipment status + ETA by order ID from orders.json</div>
+    </div>
+    <div class="tool-card">
+      <div class="name">search_product</div>
+      <div class="desc">Looks up price + stock by product name from products.json</div>
+    </div>
+    <div class="tool-card">
+      <div class="name">search_knowledge_base</div>
+      <div class="desc">Vector search over ingested documents in FAISS</div>
+    </div>
+  </div>
+
+  <!-- CENTER: Chat -->
+  <div class="main">
+    <div class="chat-header">
+      <div>
+        <div style="font-weight:600; font-size:14px;">Chat</div>
+        <div class="session">session · <span id="sessionIdLabel"></span></div>
+      </div>
+      <button class="clear-btn" id="clearBtn">clear session</button>
+    </div>
+
+    <div class="messages" id="messages">
+      <div class="empty-state">
+        <div class="big">💬</div>
+        Ask a question. Try:<br><br>
+        "Where is my order ORD001?"<br>
+        "Do you have a wireless mouse?"<br>
+        "My name is John." → "What's my name?"
+      </div>
+    </div>
+
+    <div class="composer">
+      <div class="composer-inner">
+        <input type="text" id="messageInput" placeholder="Message the assistant…" />
+        <button class="send-btn" id="sendBtn">Send</button>
+      </div>
+      <div class="hint">Enter to send · routing + tool calls shown on the right</div>
+    </div>
+  </div>
+
+  <!-- RIGHT: Trace / debug panel -->
+  <div class="side right">
+    <h1>Pipeline Trace</h1>
+    <div class="section-label">Last turn</div>
+    <div id="traceContent"><div class="trace-empty">Send a message to see how it was routed — knowledge base retrieval, a tool call, or a direct response.</div></div>
+  </div>
+
+</div>
+
+<script>
+const API_BASE = "";
+const sessionId = "sess_" + Math.random().toString(36).slice(2, 10);
+document.getElementById("sessionIdLabel").textContent = sessionId;
+
+const messagesEl = document.getElementById("messages");
+const inputEl = document.getElementById("messageInput");
+const sendBtn = document.getElementById("sendBtn");
+const traceEl = document.getElementById("traceContent");
+const docListEl = document.getElementById("docList");
+const dropZone = document.getElementById("dropZone");
+const fileInput = document.getElementById("fileInput");
+
+let hasMessages = false;
+let docCount = 0;
+
+function clearEmptyState() {
+  if (!hasMessages) {
+    messagesEl.innerHTML = "";
+    hasMessages = true;
+  }
+}
+
+function addMessage(role, text, route) {
+  clearEmptyState();
+  const div = document.createElement("div");
+  div.className = "msg " + role;
+  if (role === "assistant" && route) {
+    const tag = document.createElement("div");
+    tag.className = "route-tag " + route;
+    tag.textContent = route.replace("_", " ");
+    div.appendChild(tag);
+  }
+  const textNode = document.createElement("div");
+  textNode.textContent = text;
+  div.appendChild(textNode);
+  messagesEl.appendChild(div);
+  messagesEl.scrollTop = messagesEl.scrollHeight;
+  return div;
+}
+
+function addThinking() {
+  clearEmptyState();
+  const div = document.createElement("div");
+  div.className = "thinking";
+  div.id = "thinkingIndicator";
+  div.innerHTML = '<span class="spinner"></span> thinking…';
+  messagesEl.appendChild(div);
+  messagesEl.scrollTop = messagesEl.scrollHeight;
+}
+function removeThinking() {
+  const el = document.getElementById("thinkingIndicator");
+  if (el) el.remove();
+}
+
+function renderTrace(data) {
+  let html = "";
+  html += `<div class="trace-block"><span class="k">route:</span> <span class="v">${data.route}</span></div>`;
+
+  if (data.tool_calls && data.tool_calls.length > 0) {
+    data.tool_calls.forEach(tc => {
+      html += `<div class="trace-block">
+        <div><span class="k">tool:</span> <span class="v">${tc.tool_name}</span></div>
+        <div><span class="k">input:</span></div>
+        <pre>${escapeHtml(JSON.stringify(tc.tool_input, null, 2))}</pre>
+        <div style="margin-top:6px;"><span class="k">output:</span></div>
+        <pre>${escapeHtml(JSON.stringify(tc.tool_output, null, 2))}</pre>
+      </div>`;
+    });
+  }
+
+  if (data.sources && data.sources.length > 0) {
+    html += `<div class="trace-block"><div class="k">retrieved sources:</div>`;
+    data.sources.forEach(s => {
+      html += `<div class="source-snippet">[${escapeHtml(s.source)} · chunk ${s.chunk_id}]<br>${escapeHtml(s.snippet)}…</div>`;
+    });
+    html += `</div>`;
+  }
+
+  if (!data.tool_calls?.length && !data.sources?.length) {
+    html += `<div class="trace-empty">No tool call or retrieval — answered directly / from conversation memory.</div>`;
+  }
+
+  traceEl.innerHTML = html;
+}
+
+function escapeHtml(str) {
+  const div = document.createElement("div");
+  div.textContent = str;
+  return div.innerHTML;
+}
+
+async function sendMessage() {
+  const text = inputEl.value.trim();
+  if (!text) return;
+  inputEl.value = "";
+  sendBtn.disabled = true;
+
+  addMessage("user", text);
+  addThinking();
+
+  try {
+    const res = await fetch(`${API_BASE}/chat`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ session_id: sessionId, message: text }),
+    });
+    removeThinking();
+
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({ detail: "Unknown error" }));
+      addMessage("assistant", `⚠ Error: ${err.detail || res.statusText}`, "direct");
+      return;
+    }
+
+    const data = await res.json();
+    addMessage("assistant", data.reply, data.route);
+    renderTrace(data);
+  } catch (e) {
+    removeThinking();
+    addMessage("assistant", `⚠ Network error: ${e.message}`, "direct");
+  } finally {
+    sendBtn.disabled = false;
+    inputEl.focus();
+  }
+}
+
+sendBtn.addEventListener("click", sendMessage);
+inputEl.addEventListener("keydown", (e) => {
+  if (e.key === "Enter") sendMessage();
+});
+
+document.getElementById("clearBtn").addEventListener("click", async () => {
+  await fetch(`${API_BASE}/chat/${sessionId}`, { method: "DELETE" });
+  messagesEl.innerHTML = `<div class="empty-state"><div class="big">💬</div>Session cleared.</div>`;
+  hasMessages = false;
+  traceEl.innerHTML = `<div class="trace-empty">Send a message to see how it was routed.</div>`;
+});
+
+// --- Upload handling ---
+dropZone.addEventListener("click", () => fileInput.click());
+dropZone.addEventListener("dragover", (e) => { e.preventDefault(); dropZone.classList.add("dragover"); });
+dropZone.addEventListener("dragleave", () => dropZone.classList.remove("dragover"));
+dropZone.addEventListener("drop", (e) => {
+  e.preventDefault();
+  dropZone.classList.remove("dragover");
+  if (e.dataTransfer.files.length) uploadFile(e.dataTransfer.files[0]);
+});
+fileInput.addEventListener("change", () => {
+  if (fileInput.files.length) uploadFile(fileInput.files[0]);
+});
+
+async function uploadFile(file) {
+  const originalText = dropZone.innerHTML;
+  dropZone.innerHTML = `<span class="spinner"></span> Ingesting "${file.name}"…`;
+
+  const formData = new FormData();
+  formData.append("file", file);
+
+  try {
+    const res = await fetch(`${API_BASE}/ingest`, { method: "POST", body: formData });
+    const data = await res.json();
+    dropZone.innerHTML = originalText;
+
+    if (!res.ok) {
+      alert("Ingestion failed: " + (data.detail || "Unknown error"));
+      return;
+    }
+
+    if (docCount === 0) docListEl.innerHTML = "";
+    docCount++;
+    const item = document.createElement("div");
+    item.className = "doc-item";
+    item.innerHTML = `<span>${escapeHtml(data.filename)}</span><span class="chunks">${data.num_chunks} chunks</span>`;
+    docListEl.appendChild(item);
+  } catch (e) {
+    dropZone.innerHTML = originalText;
+    alert("Upload error: " + e.message);
+  }
+}
+</script>
+</body>
+</html>

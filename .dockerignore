@@ -1,0 +1,14 @@
+venv/
+.venv/
+__pycache__/
+*.pyc
+.env
+.git/
+.gitignore
+data/vectorstore/*.faiss
+data/vectorstore/metadata.json
+data/uploads/*
+tests/
+.pytest_cache/
+*.md
+!README.md
