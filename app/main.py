@@ -43,19 +43,22 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-ALLOWED_EXTENSIONS = {".pdf", ".txt", ".md", ".markdown",".csv"}
+ALLOWED_EXTENSIONS = {".pdf", ".txt", ".md", ".markdown"}
 
 
-@app.get("/", include_in_schema=False)
+@app.api_route("/", methods=["GET", "HEAD"], include_in_schema=False)
 def root():
     return RedirectResponse(url="/ui")
 
 
-@app.get("/health")
+@app.api_route("/health", methods=["GET", "HEAD"])
 def health():
+    frontend_dir = Path(__file__).resolve().parent.parent / "frontend"
+    frontend_ok = frontend_dir.exists() and (frontend_dir / "index.html").exists()
     return {
         "status": "ok",
         "openai_key_configured": bool(OPENAI_API_KEY),
+        "frontend_mounted": frontend_ok,
     }
 
 
@@ -139,5 +142,12 @@ async def clear_history(session_id: str):
 
 # Serve the minimal demo frontend, if present, at /ui
 frontend_dir = Path(__file__).resolve().parent.parent / "frontend"
-if frontend_dir.exists():
+FRONTEND_MOUNTED = frontend_dir.exists() and (frontend_dir / "index.html").exists()
+if FRONTEND_MOUNTED:
     app.mount("/ui", StaticFiles(directory=str(frontend_dir), html=True), name="ui")
+else:
+    print(
+        f"WARNING: frontend directory not found or missing index.html at "
+        f"'{frontend_dir}' -- /ui will 404. Check that the 'frontend/' folder "
+        f"was included in this deployment."
+    )
