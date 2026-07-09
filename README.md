@@ -4,7 +4,7 @@
 *(hosted on Render's free tier — if it's been idle a while, first load may take ~30-60s to spin up)*
 
 A mini AI assistant supporting **knowledge ingestion (RAG)**, **chat**, **session
-memory**, and **tool calling**, built with FastAPI, OpenAI, and ChromaDB.
+memory**, and **tool calling**, built with FastAPI, OpenAI, and FAISS.
 
 Built for the Studio Butterfly AI Developer take-home assignment.
 

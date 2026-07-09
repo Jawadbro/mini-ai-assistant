@@ -8,6 +8,7 @@ Routes:
   DELETE /chat/{sid}  - clear a session's memory
   GET  /health        - liveness check
 """
+import utils.session
 import shutil
 from pathlib import Path
 
